@@ -1,3 +1,18 @@
+from fastapi import FastAPI, Body
+from PIL import Image
+from io import BytesIO
+import numpy as np
+import cv2
+import base64
+
+app = FastAPI()
+
+
+@app.get("/")
+def home():
+    return {"message": "backend working"}
+
+
 @app.post("/segment")
 async def segment(data: dict = Body(...)):
     try:
@@ -7,10 +22,7 @@ async def segment(data: dict = Body(...)):
 
         image_bytes = base64.b64decode(image_base64)
 
-        image = Image.open(
-            BytesIO(image_bytes)
-        ).convert("RGB")
-
+        image = Image.open(BytesIO(image_bytes)).convert("RGB")
         image = image.resize((256, 256))
         image_np = np.array(image)
 
@@ -21,11 +33,7 @@ async def segment(data: dict = Body(...)):
 
         mask = np.zeros((h + 2, w + 2), np.uint8)
 
-        image_np = cv2.GaussianBlur(
-            image_np,
-            (9, 9),
-            0
-        )
+        image_np = cv2.GaussianBlur(image_np, (9, 9), 0)
 
         cv2.floodFill(
             image_np,
