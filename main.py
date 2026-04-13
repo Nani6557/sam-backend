@@ -42,8 +42,8 @@ async def segment(data: dict = Body(...)):
             mask,
             seedPoint=(x, y),
             newVal=(255, 255, 255),
-            loDiff=(10, 10, 10),
-            upDiff=(10, 10, 10),
+            loDiff=(2, 2, 2),
+            upDiff=(2, 2, 2),
         )
 
         filled_mask = mask[1:-1, 1:-1]
