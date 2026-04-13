@@ -1,12 +1,16 @@
 from fastapi import FastAPI, UploadFile, File, Form
 from PIL import Image
+from io import BytesIO
 import numpy as np
 import cv2
 
 app = FastAPI()
+
+
 @app.get("/")
 def home():
     return {"message": "backend working"}
+
 
 @app.post("/segment")
 async def segment(
@@ -14,51 +18,78 @@ async def segment(
     x: int = Form(...),
     y: int = Form(...)
 ):
-    print("REQUEST RECEIVED")
-    print("filename:", file.filename)
-    print("x:", x)
-    print("y:", y)
+    try:
+        # Read uploaded image bytes
+        contents = await file.read()
 
-    contents = await file.read()
-    print("file size:", len(contents))
+        print("REQUEST RECEIVED")
+        print("filename:", file.filename)
+        print("x:", x)
+        print("y:", y)
+        print("file size:", len(contents))
 
-    return {
-        "message": "request reached backend",
-        "size": len(contents),
-        "x": x,
-        "y": y
-    }
-    image = Image.open(file.file).convert("RGB")
-    image = image.resize((512, 512))
-    image_np = np.array(image)
+        # Open image safely from bytes
+        image = Image.open(BytesIO(contents)).convert("RGB")
 
-    h, w = image_np.shape[:2]
+        # Resize image for processing
+        image = image.resize((512, 512))
 
-    mask = np.zeros((h + 2, w + 2), np.uint8)
+        # Convert to numpy array
+        image_np = np.array(image)
 
-    seed_point = (x, y)
+        h, w = image_np.shape[:2]
 
-    cv2.floodFill(
-        image_np,
-        mask,
-        seedPoint=seed_point,
-        newVal=(255, 255, 255),
-        loDiff=(10, 10, 10),
-        upDiff=(10, 10, 10),
-    )
+        # Create mask for flood fill
+        mask = np.zeros((h + 2, w + 2), np.uint8)
 
-    filled_mask = mask[1:-1, 1:-1]
+        # Keep touch point inside bounds
+        x = max(0, min(x, w - 1))
+        y = max(0, min(y, h - 1))
 
-    contours, _ = cv2.findContours(
-        filled_mask,
-        cv2.RETR_EXTERNAL,
-        cv2.CHAIN_APPROX_SIMPLE
-    )
+        seed_point = (x, y)
 
-    points = contours[0].squeeze().tolist()
+        # Flood fill region
+        cv2.floodFill(
+            image_np,
+            mask,
+            seedPoint=seed_point,
+            newVal=(255, 255, 255),
+            loDiff=(10, 10, 10),
+            upDiff=(10, 10, 10),
+        )
 
-    return {
-        "points": points,
-        "image_width": w,
-        "image_height": h
-    }
+        # Remove border padding from mask
+        filled_mask = mask[1:-1, 1:-1]
+
+        # Find contours
+        contours, _ = cv2.findContours(
+            filled_mask,
+            cv2.RETR_EXTERNAL,
+            cv2.CHAIN_APPROX_SIMPLE
+        )
+
+        # If nothing detected
+        if len(contours) == 0:
+            return {"points": []}
+
+        # Get largest contour
+        largest_contour = max(contours, key=cv2.contourArea)
+
+        points = largest_contour.squeeze().tolist()
+
+        # Ensure points always return as list
+        if isinstance(points[0], int):
+            points = [points]
+
+        return {
+            "points": points,
+            "image_width": w,
+            "image_height": h
+        }
+
+    except Exception as e:
+        print("ERROR:", str(e))
+        return {
+            "error": str(e),
+            "points": []
+        }
