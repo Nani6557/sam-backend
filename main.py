@@ -4,7 +4,9 @@ import numpy as np
 import cv2
 
 app = FastAPI()
-
+@app.get("/")
+def home():
+    return {"message": "backend working"}
 
 @app.post("/segment")
 async def segment(
