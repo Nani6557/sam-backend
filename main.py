@@ -1,18 +1,3 @@
-from fastapi import FastAPI, Body
-from PIL import Image
-from io import BytesIO
-import numpy as np
-import cv2
-import base64
-
-app = FastAPI()
-
-
-@app.get("/")
-def home():
-    return {"message": "backend working"}
-
-
 @app.post("/segment")
 async def segment(data: dict = Body(...)):
     try:
@@ -27,8 +12,7 @@ async def segment(data: dict = Body(...)):
         ).convert("RGB")
 
         image = image.resize((256, 256))
-
-      image_np = np.array(image)
+        image_np = np.array(image)
 
         h, w = image_np.shape[:2]
 
@@ -37,19 +21,19 @@ async def segment(data: dict = Body(...)):
 
         mask = np.zeros((h + 2, w + 2), np.uint8)
 
-
         image_np = cv2.GaussianBlur(
-    image_np,
-    (5, 5),
-    0
-)
+            image_np,
+            (9, 9),
+            0
+        )
+
         cv2.floodFill(
             image_np,
             mask,
             seedPoint=(x, y),
             newVal=(255, 255, 255),
-            loDiff=(0.5, 0.5, 0.5),
-            upDiff=(0.5, 0.5, 0.5),
+            loDiff=(1, 1, 1),
+            upDiff=(1, 1, 1),
         )
 
         filled_mask = mask[1:-1, 1:-1]
@@ -63,22 +47,23 @@ async def segment(data: dict = Body(...)):
         if not contours:
             return {"points": []}
 
-       largest_contour = max(
-    contours,
-    key=cv2.contourArea
-)
+        largest_contour = max(
+            contours,
+            key=cv2.contourArea
+        )
 
-epsilon = 0.002 * cv2.arcLength(
-    largest_contour, True
-)
+        epsilon = 0.002 * cv2.arcLength(
+            largest_contour,
+            True
+        )
 
-largest_contour = cv2.approxPolyDP(
-    largest_contour,
-    epsilon,
-    True
-)
+        largest_contour = cv2.approxPolyDP(
+            largest_contour,
+            epsilon,
+            True
+        )
 
-points = largest_contour.squeeze().tolist()
+        points = largest_contour.squeeze().tolist()
 
         if isinstance(points[0], int):
             points = [points]
