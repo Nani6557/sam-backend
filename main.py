@@ -31,38 +31,34 @@ async def segment_image(
     x: int = Form(...),
     y: int = Form(...)
 ):
-    global cached_image_hash
-
     image = Image.open(file.file).convert("RGB")
     image = image.resize((512, 512))
     image_np = np.array(image)
 
-    current_hash = hash(image_np.tobytes())
+    h, w = image_np.shape[:2]
 
-    if cached_image_hash != current_hash:
-        predictor.set_image(image_np)
-        cached_image_hash = current_hash
+    mask = np.zeros((h + 2, w + 2), np.uint8)
 
-    input_point = np.array([[x, y]])
-    input_label = np.array([1])
+    seed_point = (x, y)
 
-    masks, _, _ = predictor.predict(
-        point_coords=input_point,
-        point_labels=input_label,
-        multimask_output=False
+    cv2.floodFill(
+        image_np,
+        mask,
+        seedPoint=seed_point,
+        newVal=(255, 255, 255),
+        loDiff=(20, 20, 20),
+        upDiff=(20, 20, 20),
     )
 
-    mask = masks[0].astype(np.uint8)
+    filled_mask = mask[1:-1, 1:-1]
 
     contours, _ = cv2.findContours(
-        mask,
+        filled_mask,
         cv2.RETR_EXTERNAL,
         cv2.CHAIN_APPROX_SIMPLE
     )
 
     points = contours[0].squeeze().tolist()
-
-    h, w = image_np.shape[:2]
 
     return {
         "points": points,
