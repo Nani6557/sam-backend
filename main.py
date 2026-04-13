@@ -2,12 +2,22 @@ from fastapi import FastAPI, UploadFile, File, Form
 from PIL import Image
 import numpy as np
 import cv2
+import os
+import urllib.request
 from segment_anything import sam_model_registry, SamPredictor
 
 app = FastAPI()
 
+MODEL_PATH = "sam_vit_b_01ec64.pth"
+
+if not os.path.exists(MODEL_PATH):
+    urllib.request.urlretrieve(
+        "https://dl.fbaipublicfiles.com/segment_anything/sam_vit_b_01ec64.pth",
+        MODEL_PATH
+    )
+
 sam = sam_model_registry["vit_b"](
-    checkpoint="sam_vit_b_01ec64.pth"
+    checkpoint=MODEL_PATH
 )
 
 predictor = SamPredictor(sam)
