@@ -1,9 +1,17 @@
-from fastapi import Body
+from fastapi import FastAPI, Body
 from PIL import Image
 from io import BytesIO
 import numpy as np
 import cv2
 import base64
+
+app = FastAPI()
+
+
+@app.get("/")
+def home():
+    return {"message": "backend working"}
+
 
 @app.post("/segment")
 async def segment(data: dict = Body(...)):
