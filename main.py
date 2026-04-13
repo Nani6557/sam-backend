@@ -51,18 +51,28 @@ async def segment(data: dict = Body(...)):
         contours, _ = cv2.findContours(
             filled_mask,
             cv2.RETR_EXTERNAL,
-            cv2.CHAIN_APPROX_SIMPLE
+            cv2.CHAIN_APPROX_NONE
         )
 
         if not contours:
             return {"points": []}
 
-        largest_contour = max(
-            contours,
-            key=cv2.contourArea
-        )
+       largest_contour = max(
+    contours,
+    key=cv2.contourArea
+)
 
-        points = largest_contour.squeeze().tolist()
+epsilon = 0.002 * cv2.arcLength(
+    largest_contour, True
+)
+
+largest_contour = cv2.approxPolyDP(
+    largest_contour,
+    epsilon,
+    True
+)
+
+points = largest_contour.squeeze().tolist()
 
         if isinstance(points[0], int):
             points = [points]
