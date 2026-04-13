@@ -7,11 +7,25 @@ app = FastAPI()
 
 
 @app.post("/segment")
-async def segment_image(
+async def segment(
     file: UploadFile = File(...),
     x: int = Form(...),
     y: int = Form(...)
 ):
+    print("REQUEST RECEIVED")
+    print("filename:", file.filename)
+    print("x:", x)
+    print("y:", y)
+
+    contents = await file.read()
+    print("file size:", len(contents))
+
+    return {
+        "message": "request reached backend",
+        "size": len(contents),
+        "x": x,
+        "y": y
+    }
     image = Image.open(file.file).convert("RGB")
     image = image.resize((512, 512))
     image_np = np.array(image)
