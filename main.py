@@ -1,83 +1,61 @@
-from fastapi import FastAPI, UploadFile, File, Form
+from fastapi import Body
 from PIL import Image
 from io import BytesIO
 import numpy as np
 import cv2
-
-app = FastAPI()
-
-
-@app.get("/")
-def home():
-    return {"message": "backend working"}
-
+import base64
 
 @app.post("/segment")
-async def segment(
-    file: UploadFile = File(...),
-    x: int = Form(...),
-    y: int = Form(...)
-):
+async def segment(data: dict = Body(...)):
     try:
-        # Read uploaded image bytes
-        contents = await file.read()
+        image_base64 = data["image"]
+        x = data["x"]
+        y = data["y"]
 
-        print("REQUEST RECEIVED")
-        print("filename:", file.filename)
-        print("x:", x)
-        print("y:", y)
-        print("file size:", len(contents))
+        image_bytes = base64.b64decode(image_base64)
 
-        # Open image safely from bytes
-        image = Image.open(BytesIO(contents)).convert("RGB")
+        image = Image.open(
+            BytesIO(image_bytes)
+        ).convert("RGB")
 
-        # Resize image for processing
-        image = image.resize((512, 512))
+        image = image.resize((256, 256))
 
-        # Convert to numpy array
         image_np = np.array(image)
 
         h, w = image_np.shape[:2]
 
-        # Create mask for flood fill
-        mask = np.zeros((h + 2, w + 2), np.uint8)
-
-        # Keep touch point inside bounds
         x = max(0, min(x, w - 1))
         y = max(0, min(y, h - 1))
 
-        seed_point = (x, y)
+        mask = np.zeros((h + 2, w + 2), np.uint8)
 
-        # Flood fill region
         cv2.floodFill(
             image_np,
             mask,
-            seedPoint=seed_point,
+            seedPoint=(x, y),
             newVal=(255, 255, 255),
             loDiff=(10, 10, 10),
             upDiff=(10, 10, 10),
         )
 
-        # Remove border padding from mask
         filled_mask = mask[1:-1, 1:-1]
 
-        # Find contours
         contours, _ = cv2.findContours(
             filled_mask,
             cv2.RETR_EXTERNAL,
             cv2.CHAIN_APPROX_SIMPLE
         )
 
-        # If nothing detected
-        if len(contours) == 0:
+        if not contours:
             return {"points": []}
 
-        # Get largest contour
-        largest_contour = max(contours, key=cv2.contourArea)
+        largest_contour = max(
+            contours,
+            key=cv2.contourArea
+        )
 
         points = largest_contour.squeeze().tolist()
 
-        # Ensure points always return as list
         if isinstance(points[0], int):
             points = [points]
 
