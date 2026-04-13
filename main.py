@@ -46,8 +46,8 @@ async def segment_image(
         mask,
         seedPoint=seed_point,
         newVal=(255, 255, 255),
-        loDiff=(20, 20, 20),
-        upDiff=(20, 20, 20),
+        loDiff=(10, 10, 10),
+        upDiff=(10, 10, 10),
     )
 
     filled_mask = mask[1:-1, 1:-1]
