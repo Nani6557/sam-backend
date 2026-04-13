@@ -23,7 +23,7 @@ async def segment(data: dict = Body(...)):
         image_bytes = base64.b64decode(image_base64)
 
         image = Image.open(BytesIO(image_bytes)).convert("RGB")
-        image = image.resize((256, 256))
+       
         image_np = np.array(image)
 
         h, w = image_np.shape[:2]
