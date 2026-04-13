@@ -28,11 +28,7 @@ async def segment(data: dict = Body(...)):
 
         image = image.resize((256, 256))
 
-       image_np = cv2.GaussianBlur(
-    image_np,
-    (9, 9),
-    0
-)
+      image_np = np.array(image)
 
         h, w = image_np.shape[:2]
 
@@ -41,6 +37,12 @@ async def segment(data: dict = Body(...)):
 
         mask = np.zeros((h + 2, w + 2), np.uint8)
 
+
+        image_np = cv2.GaussianBlur(
+    image_np,
+    (5, 5),
+    0
+)
         cv2.floodFill(
             image_np,
             mask,
