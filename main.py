@@ -15,33 +15,6 @@ def home():
     return {"message": "backend working"}
 
 
-@app.post("/upload-image")
-async def upload_image(data: dict = Body(...)):
-    global cached_image
-
-    try:
-        image_base64 = data["image"]
-
-        image_bytes = base64.b64decode(image_base64)
-
-        image = Image.open(
-            BytesIO(image_bytes)
-        ).convert("RGB")
-
-        cached_image = np.array(image)
-
-        h, w = cached_image.shape[:2]
-
-        return {
-            "message": "uploaded successfully",
-            "image_width": w,
-            "image_height": h
-        }
-
-    except Exception as e:
-        return {"error": str(e)}
-
-
 @app.post("/segment")
 async def segment(data: dict = Body(...)):
     global cached_image
@@ -50,37 +23,29 @@ async def segment(data: dict = Body(...)):
         if cached_image is None:
             return {"points": []}
 
-        x = data["x"]
-        y = data["y"]
-
         image_np = cached_image.copy()
 
         h, w = image_np.shape[:2]
 
-        x = max(0, min(x, w - 1))
-        y = max(0, min(y, h - 1))
-
-        mask = np.zeros((h + 2, w + 2), np.uint8)
-
-        image_np = cv2.GaussianBlur(
+        gray = cv2.cvtColor(
             image_np,
-            (3, 3),
+            cv2.COLOR_RGB2GRAY
+        )
+
+        blurred = cv2.GaussianBlur(
+            gray,
+            (5, 5),
             0
         )
 
-        cv2.floodFill(
-            image_np,
-            mask,
-            seedPoint=(x, y),
-            newVal=(255, 255, 255),
-            loDiff=(1, 1, 1),
-            upDiff=(1, 1, 1),
+        edges = cv2.Canny(
+            blurred,
+            50,
+            150
         )
 
-        filled_mask = mask[1:-1, 1:-1]
-
         contours, _ = cv2.findContours(
-            filled_mask,
+            edges,
             cv2.RETR_EXTERNAL,
             cv2.CHAIN_APPROX_SIMPLE
         )
@@ -98,13 +63,13 @@ async def segment(data: dict = Body(...)):
             True
         )
 
-        largest_contour = cv2.approxPolyDP(
+        approx = cv2.approxPolyDP(
             largest_contour,
             epsilon,
             True
         )
 
-        points = largest_contour.squeeze().tolist()
+        points = approx.squeeze().tolist()
 
         if isinstance(points[0], int):
             points = [points]
