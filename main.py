@@ -7,24 +7,53 @@ import base64
 
 app = FastAPI()
 
+cached_image = None
+
 
 @app.get("/")
 def home():
     return {"message": "backend working"}
 
 
-@app.post("/segment")
-async def segment(data: dict = Body(...)):
+@app.post("/upload-image")
+async def upload_image(data: dict = Body(...)):
+    global cached_image
+
     try:
         image_base64 = data["image"]
-        x = data["x"]
-        y = data["y"]
 
         image_bytes = base64.b64decode(image_base64)
 
-        image = Image.open(BytesIO(image_bytes)).convert("RGB")
-       
-        image_np = np.array(image)
+        image = Image.open(
+            BytesIO(image_bytes)
+        ).convert("RGB")
+
+        cached_image = np.array(image)
+
+        h, w = cached_image.shape[:2]
+
+        return {
+            "message": "uploaded successfully",
+            "image_width": w,
+            "image_height": h
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
+
+
+@app.post("/segment")
+async def segment(data: dict = Body(...)):
+    global cached_image
+
+    try:
+        if cached_image is None:
+            return {"points": []}
+
+        x = data["x"]
+        y = data["y"]
+
+        image_np = cached_image.copy()
 
         h, w = image_np.shape[:2]
 
@@ -33,7 +62,11 @@ async def segment(data: dict = Body(...)):
 
         mask = np.zeros((h + 2, w + 2), np.uint8)
 
-        image_np = cv2.GaussianBlur(image_np, (5, 5), 0)
+        image_np = cv2.GaussianBlur(
+            image_np,
+            (3, 3),
+            0
+        )
 
         cv2.floodFill(
             image_np,
@@ -49,7 +82,7 @@ async def segment(data: dict = Body(...)):
         contours, _ = cv2.findContours(
             filled_mask,
             cv2.RETR_EXTERNAL,
-            cv2.CHAIN_APPROX_NONE
+            cv2.CHAIN_APPROX_SIMPLE
         )
 
         if not contours:
@@ -60,7 +93,7 @@ async def segment(data: dict = Body(...)):
             key=cv2.contourArea
         )
 
-        epsilon = 0.002 * cv2.arcLength(
+        epsilon = 0.01 * cv2.arcLength(
             largest_contour,
             True
         )
@@ -83,7 +116,6 @@ async def segment(data: dict = Body(...)):
         }
 
     except Exception as e:
-        print("ERROR:", str(e))
         return {
             "error": str(e),
             "points": []
