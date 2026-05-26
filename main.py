@@ -1,66 +1,90 @@
-from fastapi import FastAPI, Body
+
+from fastapi import Body
 from PIL import Image
 from io import BytesIO
 import numpy as np
 import cv2
 import base64
 
-app = FastAPI()
-
-cached_image = None
-
-
-@app.get("/")
-def home():
-    return {"message": "backend working"}
-
-
 @app.post("/segment")
 async def segment(data: dict = Body(...)):
-    global cached_image
-
     try:
-        if cached_image is None:
-            return {"points": []}
+        image_base64 = data["image"]
 
-        image_np = cached_image.copy()
+        x = data["x"]
+        y = data["y"]
+
+        image_bytes = base64.b64decode(
+            image_base64
+        )
+
+        image = Image.open(
+            BytesIO(image_bytes)
+        ).convert("RGB")
+
+        image_np = np.array(image)
 
         h, w = image_np.shape[:2]
 
-        gray = cv2.cvtColor(
-            image_np,
-            cv2.COLOR_RGB2GRAY
+        x = int(x)
+        y = int(y)
+
+        x = max(0, min(x, w - 1))
+        y = max(0, min(y, h - 1))
+
+        print("IMAGE SIZE:", w, h)
+        print("CLICK:", x, y)
+
+        flood_image = image_np.copy()
+
+        mask = np.zeros(
+            (h + 2, w + 2),
+            np.uint8
         )
 
-        blurred = cv2.GaussianBlur(
-            gray,
-            (5, 5),
-            0
+        cv2.floodFill(
+            flood_image,
+            mask,
+            seedPoint=(x, y),
+            newVal=(255, 255, 255),
+            loDiff=(35, 35, 35),
+            upDiff=(35, 35, 35),
         )
 
-        edges = cv2.Canny(
-            blurred,
-            50,
-            150
+        filled_mask = mask[1:-1, 1:-1]
+
+        print(
+            "MASK SUM:",
+            filled_mask.sum()
         )
 
         contours, _ = cv2.findContours(
-            edges,
+            filled_mask,
             cv2.RETR_EXTERNAL,
             cv2.CHAIN_APPROX_SIMPLE
         )
 
-        if not contours:
-            return {"points": []}
+        print(
+            "CONTOURS:",
+            len(contours)
+        )
+
+        if len(contours) == 0:
+            return {
+                "points": []
+            }
 
         largest_contour = max(
             contours,
             key=cv2.contourArea
         )
 
-        epsilon = 0.01 * cv2.arcLength(
-            largest_contour,
-            True
+        epsilon = (
+            0.002
+            * cv2.arcLength(
+                largest_contour,
+                True
+            )
         )
 
         approx = cv2.approxPolyDP(
@@ -81,7 +105,10 @@ async def segment(data: dict = Body(...)):
         }
 
     except Exception as e:
+        print("ERROR:", str(e))
+
         return {
             "error": str(e),
             "points": []
         }
+
